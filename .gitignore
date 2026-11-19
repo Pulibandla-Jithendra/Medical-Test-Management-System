@@ -1,0 +1,20 @@
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+**/application-local.properties
+
+# Java and Maven outputs
+**/target/
+*.class
+*.log
+
+# Local generated files
+backend/medicore/storage/
+backend/medicore/logs/
+
+# IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
