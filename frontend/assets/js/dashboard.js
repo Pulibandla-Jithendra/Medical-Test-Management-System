@@ -350,7 +350,7 @@
         }
         case "grant-consent": {
           const assignment = state.assignments.find(function (a) { return String(a.id) === String(id); });
-          if (assignment && confirmationForConsent(assignment)) await api.post("/patients/me/doctor-assignments/" + id + "/consent", { consentTextVersion: window.MEDICORE_CONSENT_TEXT_VERSION || "v1" });
+          if (assignment && confirmationForConsent(assignment)) await api.post("/patients/me/doctor-assignments/" + id + "/consent", { consentTextVersion: (window.MEDICORE_CONFIG && window.MEDICORE_CONFIG.consentTextVersion) || window.MEDICORE_CONSENT_TEXT_VERSION || "v1" });
           break;
         }
         case "withdraw-consent":

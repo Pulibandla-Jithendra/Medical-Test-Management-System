@@ -18,7 +18,16 @@ For real API-backed account registration and login, start MySQL and the Spring B
 py -m http.server 4173 --directory frontend
 ```
 
-Open `http://localhost:4173`. The frontend API base defaults to `http://localhost:8080/api/v1`; CORS must allow the exact frontend origin. Stop the frontend server with Ctrl+C. The backend listens on port 8080 by default.
+Open `http://localhost:4173`. Configure the API in `config.js`:
+
+```javascript
+window.MEDICORE_CONFIG = Object.freeze({
+  apiBaseUrl: "http://localhost:8080/api/v1",
+  consentTextVersion: "v1"
+});
+```
+
+For production, replace the local value with the HTTPS backend URL followed by `/api/v1`. CORS must allow the exact frontend origin and authentication requests must use HTTPS cookies.
 
 ## Pages and role workflows
 

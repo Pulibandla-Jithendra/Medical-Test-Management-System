@@ -1,3 +1,7 @@
 # Flyway migrations
 
-Flyway is configured to scan this classpath location. Phase 1 intentionally adds no business tables; add versioned SQL migrations here together with the approved entity implementation.
+Flyway scans this classpath location. V1 creates the complete initial schema for the MySQL 8.4
+production database and does not drop existing tables.
+
+Before startup, use a dedicated, database-scoped migration/application user rather than root.
+`application.properties` keeps Flyway enabled, validates migrations and disables Flyway clean.

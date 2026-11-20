@@ -1,7 +1,11 @@
 (function () {
   "use strict";
-  const apiBase = (window.MEDICORE_API_BASE || "http://localhost:8080/api/v1").replace(/\/$/, "");
-  const connectionErrorMessage = "Cannot reach the MediCore API. Start the backend at http://localhost:8080, confirm its MySQL settings, and allow this frontend origin in CORS.";
+  const configuredBase = window.MEDICORE_CONFIG && window.MEDICORE_CONFIG.apiBaseUrl
+    ? window.MEDICORE_CONFIG.apiBaseUrl
+    : window.MEDICORE_API_BASE || "";
+  const apiBase = String(configuredBase).trim().replace(/\/$/, "");
+  const configurationErrorMessage = "The MediCore API URL is not configured. Set apiBaseUrl in frontend/config.js.";
+  const connectionErrorMessage = "Cannot reach the configured MediCore API. Confirm the HTTPS backend URL and CORS settings.";
   let csrfToken = null;
   let refreshInFlight = null;
 
@@ -26,6 +30,7 @@
   }
 
   async function getCsrfToken() {
+    if (!apiBase) throw new Error(configurationErrorMessage);
     if (csrfToken) return csrfToken;
     const response = await fetchApi(apiBase + "/auth/csrf", { credentials: "include", headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error("Could not establish a secure API session. Check that the backend is running.");
@@ -49,6 +54,7 @@
   }
 
   async function request(path, options, retried) {
+    if (!apiBase) throw new Error(configurationErrorMessage);
     options = options || {};
     const method = (options && options.method) || "GET";
     const headers = Object.assign({ Accept: "application/json" }, (options && options.headers) || {});
@@ -77,6 +83,7 @@
   }
 
   async function download(path, retried) {
+    if (!apiBase) throw new Error(configurationErrorMessage);
     const response = await fetchApi(apiBase + path, { credentials: "include", headers: { Accept: "application/pdf" } });
     if (response.status === 401 && !retried) {
       await refresh();

@@ -65,6 +65,112 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
 The server listens on port 8080. Startup runs Flyway migration/validation and then Hibernate schema validation. A missing MySQL password, schema mismatch or migration error stops startup; do not disable Flyway or change Hibernate validation to work around it.
 
+## Railway deployment
+
+Deploy from `backend/medicore` with the Dockerfile. Railway supplies `PORT` automatically; configure these variables in the Railway service:
+
+- `PORT`: supplied by Railway; do not set a conflicting manual value.
+- `MEDICORE_DB_URL`: the managed MySQL JDBC URL for the dedicated application database/user.
+- `MEDICORE_DB_USERNAME`: the dedicated application database username.
+- `MEDICORE_DB_PASSWORD`: the dedicated application database password.
+- `MEDICORE_DB_POOL_SIZE`: optional Hikari pool size.
+- `MEDICORE_JWT_SECRET`: a secure Base64 or 32-byte-or-longer secret that remains stable across restarts.
+- `MEDICORE_CORS_ALLOWED_ORIGINS`: exact HTTPS Vercel frontend origin(s), comma-separated if multiple.
+- `MEDICORE_COOKIE_SECURE=true`: required for HTTPS production cookies.
+- `MEDICORE_REPORT_STORAGE_DIR=/app/storage/reports`: persistent PDF storage mount point.
+- `MEDICORE_DEMO_SEED_ENABLED=false`: keep synthetic demo seeding disabled.
+- `MEDICORE_BOOTSTRAP_ADMIN_ENABLED=false` after the initial administrator is created.
+
+Mount a Railway persistent volume at `/app/storage/reports`. The application stores generated PDFs under that directory in `ReportFileStorage`, and database records retain the PDF filenames. A container redeploy or restart will otherwise lose local report files.
+
+## Production MySQL database
+
+Use Railway's MySQL 8.4 template or a compatible managed MySQL 8 service. Create a dedicated empty
+database and a dedicated application user; do not expose or use the root account. Railway's database
+service is private by default, so connect the backend with the private host and port whenever both
+services are in the same Railway project.
+
+Required Spring environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `MEDICORE_DB_URL` | JDBC URL using the private MySQL host and application database name |
+| `MEDICORE_DB_USERNAME` | Dedicated MediCore application username |
+| `MEDICORE_DB_PASSWORD` | Dedicated MediCore application password |
+| `MEDICORE_DB_POOL_SIZE` | Optional Hikari pool size; omit or set only when sized deliberately |
+| `MEDICORE_REPORT_STORAGE_DIR` | Set to `/app/storage/reports` |
+| `MEDICORE_JWT_SECRET` | Stable 32-byte-or-longer secret stored as a Railway secret |
+| `MEDICORE_CORS_ALLOWED_ORIGINS` | Exact HTTPS Vercel origin(s), comma-separated |
+| `MEDICORE_COOKIE_SECURE` | Set to `true` |
+| `MEDICORE_DEMO_SEED_ENABLED` | Set to `false` |
+
+Example JDBC shape without credentials:
+
+```text
+jdbc:mysql://<private-mysql-host>:3306/<database-name>?serverTimezone=UTC
+```
+
+If Railway exposes MySQL variables to the backend through variable references, map the private host,
+port and database variables into `MEDICORE_DB_URL`. Store only the separate generated username and
+password in Railway secrets. Do not enable public database access for normal backend operation.
+
+The empty database startup sequence is:
+
+1. Create an empty database and dedicated `medicore_app`-style user through a secure database
+   administrator session.
+2. Grant the user DML and the migration privileges required for `CREATE TABLE`, `CREATE TRIGGER`,
+   foreign keys, indexes and the Flyway schema-history table only on that database.
+3. Set the variables above on the backend service.
+4. Start the backend once and verify `/actuator/health` or `/api/health`.
+5. Confirm one Flyway row is recorded for `1` and that Hibernate validation completes.
+
+Never grant the application user server-wide privileges or use the provisioned database root account.
+The dedicated user is expected to include migration privileges during controlled startup; on later
+deployments, runtime privileges can be reduced after reviewing future migrations.
+
+### Flyway compatibility findings
+
+`V1__initial_medicore_schema.sql` creates 12 tables and 2 append-only audit triggers. It uses MySQL
+8 features already compatible with MySQL 8.4: InnoDB, `utf8mb4_0900_ai_ci`, `DATETIME(6)`, JSON
+columns, checks, foreign keys, unique indexes and triggers. The migration does not use `DROP`,
+`DROP DATABASE`, or destructive schema cleanup; Flyway cleaning is also disabled in
+`application.properties`.
+
+An actual clean-database migration run requires a reachable MySQL 8.4 database. This workspace could
+not execute that run because no MySQL instance or database credential is available locally.
+
+### Persistent PDF storage
+
+In Railway, add a volume to the backend service and set:
+
+- Mount path: `/app/storage/reports`
+- Environment: `MEDICORE_REPORT_STORAGE_DIR=/app/storage/reports`
+
+Keep the Dockerfile mount and environment in this exact location. `ReportFileStorage`:
+
+- resolves `/app/storage/reports` as an absolute path;
+- creates the directory;
+- generates a UUID `.pdf` key;
+- writes only that key into a strict UUID filename;
+- loads bytes for authorized report downloads; and
+- deletes a file when a database transaction rolls back.
+
+`ReportService` generates the PDF, writes it, stores `report_file_key` in MySQL and serves it only
+through the existing authorization checks. The database and PDF volume must be backed up together:
+restoring the database alone cannot reconstruct PDF bytes, and restoring files alone cannot repair
+database references.
+
+### Database and PDF backup/recovery
+
+- Enable or schedule the managed MySQL provider's backups. Verify a restorable retention window.
+- Before schema changes or migrations, create a logical backup and retain it outside the database.
+- Do not download backups to Git or application directories.
+- Back up the Railway report volume separately and regularly, with retention and encryption.
+- Test recovery quarterly or before a major deployment: restore the database and PDF volume into
+  an isolated environment, start only the application, verify Flyway history and execute synthetic
+  report generation/download tests.
+- Never copy real patient data into backups for this academic prototype.
+
 The JWT secret above is generated for the current development session. Keep it stable while the server is running; changing it invalidates access tokens. Do not print the environment to a terminal transcript.
 
 ## Bootstrap the first administrator
