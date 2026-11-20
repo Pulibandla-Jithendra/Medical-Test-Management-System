@@ -12,9 +12,16 @@
 # Local generated files
 backend/medicore/storage/
 backend/medicore/logs/
+**/dist/
+**/build/
+**/coverage/
+**/node_modules/
+**/.parcel-cache/
 
 # IDE and operating-system files
 .idea/
 .vscode/
+*.iml
+.fleet/
 .DS_Store
 Thumbs.db
